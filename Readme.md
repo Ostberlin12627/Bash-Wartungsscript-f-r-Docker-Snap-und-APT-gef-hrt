@@ -1,17 +1,17 @@
-Das Wartungsscript wurde von mir wärend meiner Umschulung zum Fachinformatiker für Systemintegration geschrieben.
-Mit dem Script ohne GUI ist es möglich eine Wartung durchzuführen die Docker, Apt und Snap Aktuallisiert und anschießend 2 Logs per Mail versendet.
-Zum einen werden die Orginalen Logs versendet, also das was in der Konsole angezeigt werden würde.
-Zum anderen werden die selbst erstellten logs verschickt die auf Lesbarkeit ausgelegt sin.
-Da dies mein erstes Bash script ist und ich Linux hauptsächlich aus eingenen Exprimente kenne, decken die Eigenen Logs nicht alle Fehler ab.
+Die beiden Wartungsskripte wurden von mir während meiner Umschulung zum Fachinformatiker für Systemintegration geschrieben.
+Mit dem Skript ohne GUI ist es möglich, eine Wartung durchzuführen, die Docker, APT und Snap aktualisiert und anschließend 2 Logs per Mail versendet.
+Zum einen werden die originalen Logs versendet, also das, was in der Konsole angezeigt werden würde.
+Zum anderen werden die selbst erstellten Logs verschickt, die auf Lesbarkeit ausgelegt sind.
 
+Da dies mein erstes Bash-Skript ist und ich Linux hauptsächlich aus eigenen Experimenten kenne, decken die eigenen Logs nicht alle Fehler ab.
+Das andere Skript beinhaltet dieselben Funktionen wie das Skript ohne GUI, allerdings ist es notwendig, dass ein Administrator es steuert. Außerdem werden alle Ausgaben auf der Konsole angezeigt und statt der Systemlogs (Konsolenausgabe) gibt es einen Link zu den originalen Logs.
 
-#Damit das Script ordnunggemäß funktioniert, müssen die Rechte an den Dateien Angepasst werden
+Damit das Skript ordnungsgemäß funktioniert, müssen die Rechte an der Datei angepasst werden.
 
+### Dateieigentümer auf root übertragen
 
-#Dateiinhaber auf root übertragen
+`sudo chown root:root script.sh`
 
-sudo chown root:root script.sh
+### Nur root darf die Datei ausführen, lesen und bearbeiten
 
-#Nur Root darf die Datei ausführen, lesen und bearbeiten
-
-sudo chmod 700 script.sh
+`sudo chmod 700 script.sh`
