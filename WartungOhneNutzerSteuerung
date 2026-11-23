@@ -11,15 +11,17 @@ tempupdate=$(mktemp)
 tempupgrade=$(mktemp)
 tempsnap=$(mktemp)
 tempsnapfehler=$(mktemp)
+tempdockeralt=$(mktemp)
+tempdockerneu=$(mktemp)
 datum=$(date +"%Y-%m-%d_%H-%M-%S")
-trap 'rm -f "$tempupdate" "$tempupgrade" "$tempsnap" "$tempsnapfehler"' EXIT
+trap 'rm -f "$tempupdate" "$tempupgrade" "$tempsnap" "$tempsnapfehler" "$tempdockeralt" "$tempdockerneu"' EXIT
 
 # Bei Übernahme auf andere Systeme Speicherort prüfen und anpassen.
 pfad="/var/scripte/Logs"
 
 # Compose-Dateien als absolute Pfade eintragen, eine pro Zeile.
 dockerpfade=(
-    # "/opt/docker/compose.yaml"
+     "/opt/docker/compose.yaml"
 )
 
 systemlog="$pfad/systemlogs${datum}.log"
@@ -166,6 +168,78 @@ function snapaktuellisierung () {
     (( status == 0 ))
 }
 
+# Erfasst alle lokalen Docker-Images einschließlich Images ohne Tag.
+# Pro Zeile werden Name, OCI-Version (falls vorhanden) und Image-ID gespeichert.
+function dockerimages_erfassen () {
+    local ziel="$1" liste name image_id version
+    : > "$ziel" || return 1
+
+    liste=$(docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}|{{.ID}}') || return 1
+    while IFS='|' read -r name image_id; do
+        [[ -n "$image_id" ]] || continue
+        # Images ohne Repository/Tag über die eindeutige ID unterscheiden.
+        if [[ "$name" == '<none>:<none>' ]]; then
+            name="<ohne-tag>@${image_id#sha256:}"
+        fi
+        version=$(docker image inspect \
+            --format '{{index .Config.Labels "org.opencontainers.image.version"}}' \
+            "$image_id" 2>/dev/null) || return 1
+        if [[ -z "$version" || "$version" == '<no value>' ]]; then
+            version='Nicht ermittelbar'
+        fi
+        printf '%s\t%s\t%s\n' "$name" "$version" "$image_id" >> "$ziel" || return 1
+    done <<< "$liste"
+}
+
+# Vergleicht die beiden Bestandsaufnahmen nach Imagename und Image-ID.
+# Eine geänderte ID bedeutet nicht zwangsläufig eine neue Softwareversion.
+function dockerimages_vergleichen () {
+    local alte_datei="$1" neue_datei="$2"
+    local name version image_id zustand
+    local -A alte_version=() alte_id=() neue_version=() neue_id=()
+
+    while IFS=$'\t' read -r name version image_id; do
+        [[ -n "$name" ]] || continue
+        alte_version["$name"]="$version"
+        alte_id["$name"]="$image_id"
+    done < "$alte_datei"
+    while IFS=$'\t' read -r name version image_id; do
+        [[ -n "$name" ]] || continue
+        neue_version["$name"]="$version"
+        neue_id["$name"]="$image_id"
+    done < "$neue_datei"
+
+    ueberschrift 'Docker-Image-Vergleich'
+    printf '%-40s | %-22s | %-22s | %s\n' \
+        'Imagename' 'Alte Version' 'Neue Version' 'Status'
+
+    # Sortierung sorgt für eine übersichtliche und reproduzierbare Tabelle.
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        if [[ -z "${neue_id[$name]+vorhanden}" ]]; then
+            zustand='Entfernt'
+            printf '%-40s | %-22s | %-22s | %s\n' \
+                "$name" "${alte_version[$name]}" '-' "$zustand"
+        elif [[ "${alte_id[$name]}" == "${neue_id[$name]}" ]]; then
+            zustand='Unverändert'
+            printf '%-40s | %-22s | %-22s | %s\n' \
+                "$name" "${alte_version[$name]}" "${neue_version[$name]}" "$zustand"
+        else
+            zustand='Image-ID geändert'
+            printf '%-40s | %-22s | %-22s | %s\n' \
+                "$name" "${alte_version[$name]}" "${neue_version[$name]}" "$zustand"
+        fi
+    done < <(printf '%s\n' "${!alte_id[@]}" | LC_ALL=C sort)
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        if [[ -z "${alte_id[$name]+vorhanden}" ]]; then
+            printf '%-40s | %-22s | %-22s | %s\n' \
+                "$name" '-' "${neue_version[$name]}" 'Neu'
+        fi
+    done < <(printf '%s\n' "${!neue_id[@]}" | LC_ALL=C sort)
+}
+
 function dockerupdate () {
     local dockerpfad="$1" schritt status=0
 
@@ -180,6 +254,7 @@ function dockerupdate () {
         for schritt in stop pull build up; do
             printf '\nDocker Compose: %s\n' "$schritt" || exit 1
             case "$schritt" in
+                pull)  docker compose -f "$dockerpfad" pull --ignore-buildable ;;
                 build) docker compose -f "$dockerpfad" build --no-cache --pull ;;
                 up)    docker compose -f "$dockerpfad" up -d --force-recreate ;;
                 *)     docker compose -f "$dockerpfad" "$schritt" ;;
@@ -211,19 +286,46 @@ snapaktuellisierung || ergebnis=1
 
 if (( ${#dockerpfade[@]} == 0 )); then
     printf 'Docker übersprungen. Keine Compose-Datei eingetragen.\n' >> "$pfadlog" || ergebnis=1
+else
+    # Gesamten lokalen Imagebestand erfassen, nicht nur Compose-Images.
+    if dockerimages_erfassen "$tempdockeralt"; then
+        printf '\nDocker-Images vor der Wartung (Name / Version / Image-ID):\n' >> "$systemlog"
+        cat "$tempdockeralt" >> "$systemlog" || ergebnis=1
+    else
+        printf 'Docker-Image-Bestand vor der Wartung nicht lesbar.\n' >> "$pfadlog"
+        ergebnis=1
+    fi
+
+    for dockerpfad in "${dockerpfade[@]}"; do
+        dockerupdate "$dockerpfad" || ergebnis=1
+    done
+
+    if dockerimages_erfassen "$tempdockerneu"; then
+        printf '\nDocker-Images nach der Wartung (Name / Version / Image-ID):\n' >> "$systemlog"
+        cat "$tempdockerneu" >> "$systemlog" || ergebnis=1
+        if [[ -s "$tempdockeralt" ]]; then
+            dockerimages_vergleichen "$tempdockeralt" "$tempdockerneu" >> "$pfadlog" || ergebnis=1
+        else
+            printf 'Docker-Image-Vergleich nicht möglich: Ausgangsbestand fehlt oder war leer.\n' >> "$pfadlog"
+            ergebnis=1
+        fi
+    else
+        printf 'Docker-Image-Bestand nach der Wartung nicht lesbar.\n' >> "$pfadlog"
+        ergebnis=1
+    fi
 fi
-for dockerpfad in "${dockerpfade[@]}"; do
-    dockerupdate "$dockerpfad" || ergebnis=1
-done
 
 if [[ -f "$systemlog" && -f "$pfadlog" ]]; then
 
-    echo "Wartungsprotokolle vom Testnotebook" |
+    if ! echo "Wartungsprotokolle vom Testnotebook" | \
         mutt -s "Systemwartung $datum" \
         -a "$systemlog" "$pfadlog" \
-        -- admin@test.local
-
+        -- admin@test.local; then
+        echo "Fehler: E-Mail-Versand fehlgeschlagen." >&2
+        ergebnis=1
+    fi
 else
-    echo "Fehler: Mindestens eine Logdatei fehlt."
+    echo "Fehler: Mindestens eine Logdatei fehlt." >&2
+    ergebnis=1
 fi
 exit "$ergebnis"
