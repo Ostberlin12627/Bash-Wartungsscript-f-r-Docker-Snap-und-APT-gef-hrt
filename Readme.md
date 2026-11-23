@@ -4,9 +4,9 @@ Zum einen werden die originalen Logs versendet, also das, was in der Konsole ang
 Zum anderen werden die selbst erstellten Logs verschickt, die auf Lesbarkeit ausgelegt sind.
 
 Da dies mein erstes Bash-Skript ist und ich Linux hauptsächlich aus eigenen Experimenten kenne, decken die eigenen Logs nicht alle Fehler ab.
-Das andere Skript beinhaltet dieselben Funktionen wie das Skript ohne GUI, allerdings ist es notwendig, dass ein Administrator es steuert. Außerdem werden alle Ausgaben auf der Konsole angezeigt und statt der Systemlogs (Konsolenausgabe) gibt es einen Link zu den originalen Logs.
 
-Damit das Skript ordnungsgemäß funktioniert, müssen die Rechte an der Datei angepasst werden.
+Das andere Skript beinhaltet dieselben Funktionen wie das Skript ohne GUI, allerdings ist es notwendig, dass ein Administrator es steuert. Außerdem werden alle Ausgaben auf der Konsole angezeigt und statt der Systemlogs (Konsolenausgabe) gibt es einen Link zu den originalen Logs.
+Damit `script.sh` ordnungsgemäß funktioniert, müssen die Rechte an der Datei angepasst werden.
 
 ### Dateieigentümer auf root übertragen
 
@@ -15,3 +15,9 @@ Damit das Skript ordnungsgemäß funktioniert, müssen die Rechte an der Datei a
 ### Nur root darf die Datei ausführen, lesen und bearbeiten
 
 `sudo chmod 700 script.sh`
+
+### Menügeführtes Skript
+
+Bei `systemscript_mit_Menu.sh` reicht es aus, die Datei ausführbar zu machen.
+
+`chmod +x systemscript_mit_Menu.sh`
