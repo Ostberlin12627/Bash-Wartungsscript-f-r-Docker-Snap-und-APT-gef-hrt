@@ -8,5 +8,7 @@ Da dies mein erstes Bash script ist und ich Linux hauptsächlich aus eingenen Ex
 #Damit das Script ordnunggemäß funktioniert, müssen die Rechte an den Dateien Angepasst werden
 #Dateiinhaber auf root übertragen
 #sudo chown root:root script.sh
+
 #Nur Root darf die Datei ausführen, lesen und bearbeiten
+
 #sudo chmod 700 script.sh
