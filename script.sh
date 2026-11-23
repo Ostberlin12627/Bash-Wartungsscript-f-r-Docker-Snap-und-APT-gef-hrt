@@ -1,8 +1,5 @@
 #!/bin/bash
 #Script muss als root ausgeführt werden, 
-#damit eine Wartung Ordnungsgemäß funktioniert.
-#sudo chown root:root script.sh
-#sudo chmod 700 script.sh
 
 export DEBIAN_FRONTEND=noninteractive
 
